@@ -1,0 +1,20 @@
+<?php
+
+/* ====================
+Seditio - Website engine
+Copyright (c) Seditio Team
+https://seditio.org
+
+[BEGIN_SED]
+File=plugins/recentitems/lang/recentitems.ru.lang.php
+Version=185
+Updated=2026-feb-14
+Type=Plugin
+Author=Seditio Team
+Description=
+[END_SED]
+==================== */
+
+$L['cfg_maxpages'] = array("Görüntülenecek sayfa sayısı", "");
+$L['cfg_maxtopics'] = array("Görüntülenecek konu sayısı", "");
+$L['cfg_maxpolls'] = array("Görüntülenecek anket sayısı", "");

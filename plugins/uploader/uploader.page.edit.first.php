@@ -1,0 +1,43 @@
+<?php
+
+/* ====================
+Seditio - Website engine
+Copyright (c) Seditio Team
+https://seditio.org
+
+[BEGIN_SED]
+File=plugins/uploader/uploader.page.edit.first.php
+Version=185
+Updated=2026-feb-14
+Type=Plugin
+Author=Amro
+Description=
+[END_SED]
+
+[BEGIN_SED_EXTPLUGIN]
+Code=uploader
+Part=page
+File=uploader.page.edit.first
+Hooks=page.edit.update.first
+Tags=
+Minlevel=0
+Order=11
+Lock=0
+[END_SED_EXTPLUGIN]
+
+==================== */
+
+if (!defined('SED_CODE')) {
+  die('Wrong URL.');
+}
+
+$extraslot = $cfg['plugin']['uploader']['thumb_extra'];
+$rpageextra = 'rpage' . $extraslot;
+
+$imageuploader = sed_import($extraslot . '_imageuploader', 'P', 'ARR');
+if (is_array($imageuploader) && count($imageuploader) > 0) {
+  foreach ($imageuploader as $imagename) {
+    $rpageextra_arr[] = sed_import($imagename, 'D', 'TXT');
+  }
+  $_POST[$rpageextra] = implode(';', $rpageextra_arr);
+}
