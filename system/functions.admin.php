@@ -25,84 +25,6 @@ unset($adminmain, $adminhelp, $admin_icon, $plugin_body, $plugin_title, $plugin_
 $adminpath = array();
 
 /** 
- * Converts an access character mask into a permission byte 
- * 
- * @param string $mask Access character mask, e.g. 'RW1A' 
- * @return int 
- */
-function sed_auth_getvalue($mask)
-{
-	$mn['0'] = 0;
-	$mn['R'] = 1;
-	$mn['W'] = 2;
-	$mn['1'] = 4;
-	$mn['2'] = 8;
-	$mn['3'] = 16;
-	$mn['4'] = 32;
-	$mn['5'] = 64;
-	$mn['A'] = 128;
-
-	$masks = str_split($mask);
-	$res = 0;
-
-	foreach ($mn as $k => $v) {
-		if (in_array($k, $masks)) {
-			$res += $mn[$k];
-		}
-	}
-	return ($res);
-}
-
-/**
- * Install auth rights for one (auth_code, auth_option): insert missing rows per group.
- * Uses letter masks (R, W, 1-5, A) converted via sed_auth_getvalue().
- *
- * @param string $auth_code Area code (e.g. 'page', 'forums', 'plug').
- * @param string|int $auth_option Option (e.g. category code, section id).
- * @param array $rights_by_group [groupid => letter_mask], e.g. [1 => 'R', 4 => 'RW']. Empty string = 0.
- * @param array|null $lock_by_group Same keyed by groupid for lock; null = 0 for all.
- * @param int $setby_userid Value for auth_setbyuserid.
- * @return void
- */
-function sed_auth_install_option($auth_code, $auth_option, $rights_by_group, $lock_by_group = null, $setby_userid = 1)
-{
-	global $db_auth;
-
-	$auth_code = sed_sql_prep($auth_code);
-	$auth_option = is_int($auth_option) ? (int)$auth_option : sed_sql_prep($auth_option);
-	$setby_userid = (int)$setby_userid;
-
-	foreach ($rights_by_group as $gid => $mask) {
-		$gid = (int)$gid;
-		$chk = sed_sql_query("SELECT 1 FROM $db_auth WHERE auth_code='$auth_code' AND auth_option='" . sed_sql_prep($auth_option) . "' AND auth_groupid=$gid LIMIT 1");
-		if (sed_sql_numrows($chk) > 0) {
-			continue;
-		}
-		$rval = sed_auth_getvalue($mask === '' ? '' : $mask);
-		$lval = ($lock_by_group !== null && array_key_exists($gid, $lock_by_group)) ? sed_auth_getvalue($lock_by_group[$gid] === '' ? '' : $lock_by_group[$gid]) : 0;
-		sed_sql_query("INSERT INTO $db_auth (auth_groupid, auth_code, auth_option, auth_rights, auth_rights_lock, auth_setbyuserid) VALUES ($gid, '$auth_code', '" . sed_sql_prep($auth_option) . "', " . (int)$rval . ", " . (int)$lval . ", $setby_userid)");
-	}
-}
-
-/**
- * Install auth rights for multiple options with the same rights per group.
- *
- * @param string $auth_code Area code.
- * @param string|int|array $options Single option or array of options.
- * @param array $rights_by_group [groupid => letter_mask].
- * @param array|null $lock_by_group Same for lock; null = 0 for all.
- * @param int $setby_userid Value for auth_setbyuserid.
- * @return void
- */
-function sed_auth_install($auth_code, $options, $rights_by_group, $lock_by_group = null, $setby_userid = 1)
-{
-	$options = is_array($options) ? $options : array($options);
-	foreach ($options as $opt) {
-		sed_auth_install_option($auth_code, $opt, $rights_by_group, $lock_by_group, $setby_userid);
-	}
-}
-
-/** 
  * Optimizes auth table by sorting its rows 
  * @global $db_auth 
  */
@@ -329,6 +251,7 @@ function sed_loadconfigmap()
 	$result[] = array('main', '04', 'adminemail', 1, 'admin@mysite.com', '');
 	$result[] = array('main', '05', 'hostip', 1, '999.999.999.999', '');
 	$result[] = array('main', '06', 'cache', 3, '1', '');
+	$result[] = array('main', '06', 'tpl_cache', 3, '0', '');
 	$result[] = array('main', '06', 'gzip', 3, '1', '');
 	$result[] = array('main', '07', 'devmode', 3, '0', '');
 	$result[] = array('main', '10', 'cookiedomain', 1, '', '');
@@ -639,7 +562,7 @@ function sed_plugin_install($pl)
 		SED_GROUP_INACTIVE => 'R',
 		SED_GROUP_BANNED => '',
 		SED_GROUP_MEMBERS => 'RW',
-		SED_GROUP_MODERATORS => 'RWA',
+		SED_GROUP_MODERATORS => 'RW',
 		SED_GROUP_SUPERADMINS => 'RWA12345',
 	);
 	$plug_default_lock = array(
@@ -723,8 +646,8 @@ function sed_plugin_uninstall($pl, $all = FALSE)
 		$blocked = false;
 		$sql_deps = sed_sql_query("SELECT pl_code, pl_title, pl_dependencies FROM $db_plugins WHERE pl_module=0 AND pl_code!='" . sed_sql_prep($pl) . "' AND pl_dependencies IS NOT NULL AND pl_dependencies != ''");
 		while ($dep_row = sed_sql_fetchassoc($sql_deps)) {
-			$deps = json_decode($dep_row['pl_dependencies'], true);
-			if (is_array($deps) && isset($deps['requires_plugins']) && is_array($deps['requires_plugins']) && in_array($pl, $deps['requires_plugins'])) {
+			$deps = sed_get_pl_dependencies($dep_row['pl_dependencies']);
+			if (in_array($pl, $deps['requires_plugins'])) {
 				$dep_name = !empty($dep_row['pl_title']) ? $dep_row['pl_title'] : $dep_row['pl_code'];
 				$dep_url = sed_url("admin", "m=plug&a=details&pl=" . $dep_row['pl_code']);
 				$res .= "<h3>Removing : plugins/" . $pl . "</h3>";
@@ -910,7 +833,7 @@ function sed_module_install($code)
 		SED_GROUP_INACTIVE => 'R',
 		SED_GROUP_BANNED => '',
 		SED_GROUP_MEMBERS => 'RW',
-		SED_GROUP_MODERATORS => 'RWA',
+		SED_GROUP_MODERATORS => 'RW',
 		SED_GROUP_SUPERADMINS => 'RWA12345',
 	);
 	$mod_default_lock = array(
@@ -990,14 +913,8 @@ function sed_module_uninstall($code)
 
 	$sql_deps = sed_sql_query("SELECT pl_code, pl_title, pl_dependencies, pl_module FROM $db_plugins WHERE pl_code!='" . sed_sql_prep($code) . "' AND pl_dependencies IS NOT NULL AND pl_dependencies != ''");
 	while ($dep_row = sed_sql_fetchassoc($sql_deps)) {
-		$deps = json_decode($dep_row['pl_dependencies'], true);
-		if (!is_array($deps)) {
-			continue;
-		}
-		$depends = false;
-		if (isset($deps['requires']) && is_array($deps['requires']) && in_array($code, $deps['requires'])) {
-			$depends = true;
-		}
+		$deps = sed_get_pl_dependencies($dep_row['pl_dependencies']);
+		$depends = in_array($code, $deps['requires']);
 		if ($depends) {
 			$dep_name = !empty($dep_row['pl_title']) ? $dep_row['pl_title'] : $dep_row['pl_code'];
 			$dep_url = !empty($dep_row['pl_module'])

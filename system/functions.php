@@ -432,6 +432,84 @@ function sed_auth_clear($id = 'all')
 	return (sed_sql_affectedrows());
 }
 
+/**
+ * Converts an access character mask into a permission byte
+ *
+ * @param string $mask Access character mask, e.g. 'RW1A'
+ * @return int
+ */
+function sed_auth_getvalue($mask)
+{
+	$mn['0'] = 0;
+	$mn['R'] = 1;
+	$mn['W'] = 2;
+	$mn['1'] = 4;
+	$mn['2'] = 8;
+	$mn['3'] = 16;
+	$mn['4'] = 32;
+	$mn['5'] = 64;
+	$mn['A'] = 128;
+
+	$masks = str_split($mask);
+	$res = 0;
+
+	foreach ($mn as $k => $v) {
+		if (in_array($k, $masks)) {
+			$res += $mn[$k];
+		}
+	}
+	return ($res);
+}
+
+/**
+ * Install auth rights for one (auth_code, auth_option): insert missing rows per group.
+ * Uses letter masks (R, W, 1-5, A) converted via sed_auth_getvalue().
+ *
+ * @param string $auth_code Area code (e.g. 'page', 'forums', 'plug').
+ * @param string|int $auth_option Option (e.g. category code, section id).
+ * @param array $rights_by_group [groupid => letter_mask], e.g. [1 => 'R', 4 => 'RW']. Empty string = 0.
+ * @param array|null $lock_by_group Same keyed by groupid for lock; null = 0 for all.
+ * @param int $setby_userid Value for auth_setbyuserid.
+ * @return void
+ */
+function sed_auth_install_option($auth_code, $auth_option, $rights_by_group, $lock_by_group = null, $setby_userid = 1)
+{
+	global $db_auth;
+
+	$auth_code = sed_sql_prep($auth_code);
+	$auth_option = is_int($auth_option) ? (int)$auth_option : sed_sql_prep($auth_option);
+	$setby_userid = (int)$setby_userid;
+
+	foreach ($rights_by_group as $gid => $mask) {
+		$gid = (int)$gid;
+		$chk = sed_sql_query("SELECT 1 FROM $db_auth WHERE auth_code='$auth_code' AND auth_option='" . sed_sql_prep($auth_option) . "' AND auth_groupid=$gid LIMIT 1");
+		if (sed_sql_numrows($chk) > 0) {
+			continue;
+		}
+		$rval = sed_auth_getvalue($mask === '' ? '' : $mask);
+		$lval = ($lock_by_group !== null && array_key_exists($gid, $lock_by_group)) ? sed_auth_getvalue($lock_by_group[$gid] === '' ? '' : $lock_by_group[$gid]) : 0;
+		sed_sql_query("INSERT INTO $db_auth (auth_groupid, auth_code, auth_option, auth_rights, auth_rights_lock, auth_setbyuserid) VALUES ($gid, '$auth_code', '" . sed_sql_prep($auth_option) . "', " . (int)$rval . ", " . (int)$lval . ", $setby_userid)");
+	}
+}
+
+/**
+ * Install auth rights for multiple options with the same rights per group.
+ *
+ * @param string $auth_code Area code.
+ * @param string|int|array $options Single option or array of options.
+ * @param array $rights_by_group [groupid => letter_mask].
+ * @param array|null $lock_by_group Same for lock; null = 0 for all.
+ * @param int $setby_userid Value for auth_setbyuserid.
+ * @return void
+ */
+function sed_auth_install($auth_code, $options, $rights_by_group, $lock_by_group = null, $setby_userid = 1)
+{
+	$options = is_array($options) ? $options : array($options);
+	foreach ($options as $opt) {
+		sed_auth_install_option($auth_code, $opt, $rights_by_group, $lock_by_group, $setby_userid);
+	}
+}
+
 /** 
  * Block user if he is not allowed to access the page 
  * 
@@ -939,6 +1017,43 @@ function sed_cache_clearall()
 	return (TRUE);
 }
 
+/**
+ * Clears XTemplate file cache (datas/cache/templates directory).
+ *
+ * @return bool
+ */
+function sed_tplcache_clear()
+{
+	$cache_dir = SED_ROOT . '/datas/cache/templates';
+	if (!is_dir($cache_dir)) {
+		return true;
+	}
+	$items = @scandir($cache_dir);
+	if ($items === false) {
+		return false;
+	}
+	foreach ($items as $item) {
+		if ($item === '.' || $item === '..' || $item === 'index.php') {
+			continue;
+		}
+		$path = $cache_dir . '/' . $item;
+		if (is_file($path)) {
+			@unlink($path);
+		} elseif (is_dir($path)) {
+			$sub = @scandir($path);
+			if ($sub !== false) {
+				foreach ($sub as $s) {
+					if ($s !== '.' && $s !== '..' && $s !== 'index.php') {
+						@unlink($path . '/' . $s);
+					}
+				}
+			}
+			@rmdir($path);
+		}
+	}
+	return true;
+}
+
 /** 
  * Fetches cache value 
  * 
@@ -1086,6 +1201,71 @@ function sed_check_xp()
 }
 
 /**
+ * Normalizes IP address or ban mask to canonical form for consistent matching.
+ * IPv4 is returned as-is. IPv6 is expanded to full form (8 groups of 4 hex digits).
+ *
+ * @param string $ip IP address or mask (e.g. 2001:db8::1 or 2001:db8::*)
+ * @return string|false Canonical form or false on invalid input
+ */
+function sed_normalize_ip_for_banmask($ip)
+{
+	$ip = trim($ip);
+	if (empty($ip)) {
+		return false;
+	}
+
+	// IPv4 - no normalization needed
+	if (strpos($ip, ':') === false) {
+		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+			return $ip;
+		}
+		// IPv4 mask like 192.168.1.*
+		$parts = explode('.', $ip);
+		if (count($parts) !== 4) {
+			return false;
+		}
+		foreach ($parts as $p) {
+			if ($p === '*') continue;
+			if (!ctype_digit($p) || (int)$p > 255) return false;
+		}
+		return $ip;
+	}
+
+	// IPv6 - normalize to canonical form
+	$is_mask = (strpos($ip, '*') !== false);
+	$star_count = 0;
+	if ($is_mask) {
+		$star_count = substr_count($ip, '*');
+		$ip_to_validate = str_replace('*', '0', $ip);
+		$groups = count(array_filter(explode(':', $ip_to_validate), 'strlen'));
+		if ($groups < 8 && strpos($ip_to_validate, '::') === false) {
+			$ip_to_validate .= str_repeat(':0', 8 - $groups);
+		}
+	} else {
+		$ip_to_validate = $ip;
+	}
+
+	$bin = @inet_pton($ip_to_validate);
+	if ($bin === false || strlen($bin) !== 16) {
+		return false;
+	}
+
+	$parts = array();
+	for ($i = 0; $i < 8; $i++) {
+		$parts[] = sprintf('%04x', unpack('n', substr($bin, $i * 2, 2))[1]);
+	}
+
+	if ($is_mask && $star_count > 0) {
+		$replace = min($star_count, 8);
+		for ($i = 0; $i < $replace; $i++) {
+			$parts[8 - 1 - $i] = '*';
+		}
+	}
+
+	return implode(':', $parts);
+}
+
+/**
  * Checks if the user's IP address is banned.
  *
  * This function checks if the user's IP address is present in the banlist database.
@@ -1098,22 +1278,46 @@ function sed_check_banlist($userip)
 {
 	global $db_banlist, $sys, $cfg;
 
+	// Skip check for empty or invalid IP
+	if (empty($userip) || $userip === '0.0.0.0') {
+		return;
+	}
+
 	// Determine if the IP is IPv4 or IPv6
 	if (strpos($userip, ':') !== false) {
-		// Handle IPv6
-		$userip_parts = explode(':', $userip);
+		// Handle IPv6 - normalize to canonical form first
+		$userip_normalized = sed_normalize_ip_for_banmask($userip);
+		if ($userip_normalized === false) {
+			return;
+		}
+		$userip_parts = explode(':', $userip_normalized);
 		$ipmasks = [
-			$userip,                                                 // Full IPv6 address
-			implode(':', array_slice($userip_parts, 0, 7)) . ':*',  // First 7 groups
-			implode(':', array_slice($userip_parts, 0, 6)) . ':*:*', // First 6 groups
-			implode(':', array_slice($userip_parts, 0, 5)) . ':*:*:*', // First 5 groups
-			implode(':', array_slice($userip_parts, 0, 4)) . ':*:*:*:*', // First 4 groups
+			$userip_normalized,
+			implode(':', array_slice($userip_parts, 0, 7)) . ':*',
+			implode(':', array_slice($userip_parts, 0, 6)) . ':*:*',
+			implode(':', array_slice($userip_parts, 0, 5)) . ':*:*:*',
+			implode(':', array_slice($userip_parts, 0, 4)) . ':*:*:*:*',
 		];
-		$ipmasks = "('" . implode("','", $ipmasks) . "')";
+		$ipmasks_safe = array_map(function ($m) {
+			return "'" . sed_sql_prep($m) . "'";
+		}, $ipmasks);
+		$ipmasks = "(" . implode(",", $ipmasks_safe) . ")";
 	} else {
 		// Handle IPv4
 		$userip_parts = explode('.', $userip);
-		$ipmasks = "('" . $userip_parts[0] . "." . $userip_parts[1] . "." . $userip_parts[2] . "." . $userip_parts[3] . "','" . $userip_parts[0] . "." . $userip_parts[1] . "." . $userip_parts[2] . ".*','" . $userip_parts[0] . "." . $userip_parts[1] . ".*.*','" . $userip_parts[0] . ".*.*.*')";
+		if (count($userip_parts) !== 4) {
+			return;
+		}
+		$ipmasks_arr = [
+			$userip_parts[0] . "." . $userip_parts[1] . "." . $userip_parts[2] . "." . $userip_parts[3],
+			$userip_parts[0] . "." . $userip_parts[1] . "." . $userip_parts[2] . ".*",
+			$userip_parts[0] . "." . $userip_parts[1] . ".*.*",
+			$userip_parts[0] . ".*.*.*",
+		];
+		$ipmasks_safe = array_map(function ($m) {
+			return "'" . sed_sql_prep($m) . "'";
+		}, $ipmasks_arr);
+		$ipmasks = "(" . implode(",", $ipmasks_safe) . ")";
 	}
 
 	$sql = sed_sql_query("SELECT banlist_id, banlist_ip, banlist_reason, banlist_expire FROM $db_banlist WHERE banlist_ip IN " . $ipmasks, 'Common/banlist/check');
@@ -1591,6 +1795,47 @@ function sed_getextplugins($hook, $cond = 'R')
 		}
 	}
 	return ($extplugins);
+}
+
+/**
+ * Parse pl_dependencies JSON and return array with requires/requires_plugins.
+ *
+ * @param string|null $json pl_dependencies from DB
+ * @return array array('requires' => array(), 'requires_plugins' => array())
+ */
+function sed_get_pl_dependencies($json)
+{
+	$empty = array('requires' => array(), 'requires_plugins' => array());
+	if ($json === null || $json === '') {
+		return $empty;
+	}
+	$deps = json_decode((string) $json, true);
+	if (!is_array($deps)) {
+		return $empty;
+	}
+	return array(
+		'requires' => (isset($deps['requires']) && is_array($deps['requires'])) ? $deps['requires'] : array(),
+		'requires_plugins' => (isset($deps['requires_plugins']) && is_array($deps['requires_plugins'])) ? $deps['requires_plugins'] : array()
+	);
+}
+
+/**
+ * Parse pl_dependencies JSON and return human-readable string.
+ *
+ * @param string|null $json pl_dependencies from DB
+ * @return string e.g. "mods: pfs | plugs: uploader" or "—"
+ */
+function sed_parse_pl_dependencies($json)
+{
+	$deps = sed_get_pl_dependencies($json);
+	$parts = array();
+	if (!empty($deps['requires'])) {
+		$parts[] = 'mods: ' . implode(', ', $deps['requires']);
+	}
+	if (!empty($deps['requires_plugins'])) {
+		$parts[] = 'plugs: ' . implode(', ', $deps['requires_plugins']);
+	}
+	return !empty($parts) ? implode(' | ', $parts) : '—';
 }
 
 /**

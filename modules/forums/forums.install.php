@@ -82,8 +82,8 @@ if (sed_sql_numrows($check) == 0) {
 	) ENGINE={$mysqlengine} DEFAULT CHARSET={$mysqlcharset} COLLATE={$mysqlcollate};");
 
 	// Default data
-	sed_sql_query("INSERT INTO " . $cfg['sqldbprefix'] . "forum_sections VALUES ('1', '0', '100', 'General discussion', 'pub', 0, 'General chat.', 'system/img/admin/forums.png', 0, '', 0, 0, '', 365, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0);");
-	sed_sql_query("INSERT INTO " . $cfg['sqldbprefix'] . "forum_sections VALUES ('2', '0', '101', 'Off-topic', 'pub', 0, 'Various and off-topic.', 'system/img/admin/forums.png', 0, '', 0, 0, '', 365, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0);");
+	sed_sql_query("INSERT INTO " . $cfg['sqldbprefix'] . "forum_sections VALUES ('1', '0', '100', 'General discussion', 'pub', 0, 'General chat.', 'modules/forums/forums.png', 0, '', 0, 0, '', 365, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0);");
+	sed_sql_query("INSERT INTO " . $cfg['sqldbprefix'] . "forum_sections VALUES ('2', '0', '101', 'Off-topic', 'pub', 0, 'Various and off-topic.', 'modules/forums/forums.png', 0, '', 0, 0, '', 365, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0);");
 }
 
 // Ensure auth rows exist for all forum sections (so sections are visible to groups)
@@ -95,7 +95,7 @@ $forums_default_rights = array(
 	SED_GROUP_INACTIVE => 'R',
 	SED_GROUP_BANNED => '',
 	SED_GROUP_MEMBERS => 'RW',
-	SED_GROUP_MODERATORS => 'RWA',
+	SED_GROUP_MODERATORS => 'RW',
 	SED_GROUP_SUPERADMINS => 'RWA12345',
 );
 $forums_default_lock = array(

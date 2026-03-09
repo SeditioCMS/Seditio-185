@@ -56,6 +56,17 @@ $cfg['css'] = $cfg['defaultskin'];
 $usr['ip'] = sed_get_userip();
 $sys['unique'] = sed_unique(16);
 
+/* ======== Internal cache (restore before modules so $sed_forums_str etc. are available) ======== */
+
+if ($cfg['cache']) {
+	$sql = sed_cache_getall();
+	if ($sql) {
+		while ($row = sed_sql_fetchassoc($sql)) {
+			$newvar = $row['c_name']; //fix 178 php7.1
+			$$newvar = unserialize($row['c_value']);
+		}
+	}
+}
 
 /* ======== Active modules list and API functions ======== */
 
@@ -136,18 +147,6 @@ if ($cfg['multihost']) {
 $usr['user_agent'] = $_SERVER['HTTP_USER_AGENT']; //New v173
 $check_defskin = "skins/" . $cfg['defskin'] . "/header.tpl"; //New v173
 $cfg['defaultskin'] = (!empty($cfg['defskin']) && @file_exists($check_defskin)) ? $cfg['defskin'] : $cfg['defaultskin']; //New v173
-
-/* ======== Internal cache ======== */
-
-if ($cfg['cache']) {
-	$sql = sed_cache_getall();
-	if ($sql) {
-		while ($row = sed_sql_fetchassoc($sql)) {
-			$newvar = $row['c_name']; //fix 178 php7.1
-			$$newvar = unserialize($row['c_value']);
-		}
-	}
-}
 
 /* ======== Check the banlist ======== */
 
@@ -274,8 +273,16 @@ if ($usr['id'] == 0) {
 	$usr['lang'] = $cfg['defaultlang'];
 }
 
+$xtpl_settings = array();
+if (!empty($cfg['tpl_cache'])) {
+	$xtpl_settings['cacheEnabled'] = true;
+	$xtpl_settings['cacheDir'] = SED_ROOT . '/datas/cache';
+}
 if ($cfg['devmode'] && sed_auth('admin', 'a', 'A')) {
-	XTemplate::configure(['debug' => true]);
+	$xtpl_settings['debug'] = true;
+}
+if (!empty($xtpl_settings)) {
+	XTemplate::configure($xtpl_settings);
 }
 
 /* ======== GET imports ======== */
