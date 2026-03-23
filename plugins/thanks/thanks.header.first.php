@@ -27,4 +27,6 @@ if (!defined('SED_CODE')) {
 	die('Wrong URL.');
 }
 
-sed_add_css('plugins/thanks/css/thanks.css', true);
+if (!empty($cfg['plugin']['thanks']['css'])) {
+	sed_add_css('plugins/thanks/css/thanks.css', true);
+}

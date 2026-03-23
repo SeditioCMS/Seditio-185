@@ -442,7 +442,21 @@ $extpf = sed_getextplugins('list.loopfirst');
 $extp = sed_getextplugins('list.loop');
 /* ===== */
 
-while ($pag = sed_sql_fetchassoc($sql) and ($jj <= $cfg['maxrowsperpage'])) {
+$list_items = array();
+while ($row = sed_sql_fetchassoc($sql)) {
+	$list_items[] = $row;
+}
+
+/* === Hook - list.list === */
+$extp_list = sed_getextplugins('list.list');
+if (is_array($extp_list)) {
+	foreach ($extp_list as $k => $pl) {
+		include(SED_ROOT . '/plugins/' . $pl['pl_code'] . '/' . $pl['pl_file'] . '.php');
+	}
+}
+/* ===== */
+
+foreach ($list_items as $pag) {
 
 	/* === Hook - Part2 : Include === */
 	if (is_array($extpf)) {
@@ -461,7 +475,11 @@ while ($pag = sed_sql_fetchassoc($sql) and ($jj <= $cfg['maxrowsperpage'])) {
 
 	if (!empty($pag['page_url']) && $pag['page_file']) {
 		$dotpos = mb_strrpos($pag['page_url'], ".") + 1;
-		$pag['page_fileicon'] = (mb_strlen($pag['page_url']) - $dotpos > 4) ? "doc" : mb_strtolower(mb_substr($pag['page_url'], $dotpos, 5));
+		$pag['page_fileicon'] = "system/img/ext/" . mb_strtolower(mb_substr($pag['page_url'], $dotpos, 5)) . ".svg";
+		if (!file_exists(SED_ROOT . '/' . $pag['page_fileicon'])) {
+			$pag['page_fileicon'] = "system/img/ext/download.svg";
+		}
+		$pag['page_fileicon'] = "<img src=\"" . $pag['page_fileicon'] . "\" width=\"16\" alt=\"\">";
 
 		$t->assign(array(
 			"LIST_ROW_FILEICON" => $pag['page_fileicon'],

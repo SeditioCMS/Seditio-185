@@ -12,7 +12,6 @@
 
 			<div class="page-info">
 				<div class="page-date"><i class="ic-clock"></i> {PAGE_DATE}</div>
-				<div class="page-rating"><a href="{PAGE_RATINGS_URL}"><i class="ic-star-full"></i> {PAGE_RATINGS_COUNT}</a></div>
 			</div>
 
 		</div>
@@ -55,7 +54,7 @@
 
 					</div>
 
-					<!-- BEGIN: PAGE_FILE -->
+				<!-- BEGIN: PAGE_FILE -->
 
 					<div class="page-download">
 
@@ -64,8 +63,10 @@
 
 					</div>
 
-					<!-- END: PAGE_FILE -->
-					
+				<!-- END: PAGE_FILE -->
+
+					<div class="page-tags">{PAGE_TAGS}</div>
+
 					{PAGE_THANKS_DISPLAY}
 
 				</div>
@@ -130,7 +131,7 @@
 				<div class="page-ratings">
 
 					<div class="ratings-box-title">
-						<h3>{PHP.skinlang.page.Ratings} {PAGE_RATINGS}</h3>
+						<h3>{PHP.skinlang.page.Ratings} {PAGE_RATINGS} {PAGE_RATINGS_COUNT}</h3>
 					</div>
 
 					{PAGE_RATINGS_DISPLAY}
@@ -155,7 +156,6 @@
 			</div>
 
 			<aside id="sidebar">
-
 
 				<!-- BEGIN: SIMILARPAGES -->
 				<div class="sidebar-box">
@@ -299,6 +299,22 @@
 					</div>
 
 				</div>
+
+				<!-- BEGIN: PAGE_TAGS_CLOUD_BOX -->
+				<div class="sidebar-box">
+
+					<div class="sidebar-title">
+						<h3>{PHP.L.Tags}</h3>
+					</div>
+
+					<div class="sidebar-body">
+
+						{PAGE_TAGS_CLOUD}
+
+					</div>
+
+				</div>
+				<!-- END: PAGE_TAGS_CLOUD_BOX -->
 
 				<div class="sidebar-box">
 
