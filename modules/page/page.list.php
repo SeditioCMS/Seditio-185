@@ -8,7 +8,7 @@ https://seditio.org
 [BEGIN_SED]
 File=modules/page/page.list.php
 Version=185
-Updated=2026-feb-14
+Updated=2026-apr-09
 Type=Module
 Author=Seditio Team
 Description=List (categories)
@@ -27,7 +27,7 @@ $available_sort_filterable = array(
 	'title' => 'TXT',
 	'desc' => 'TXT',
 	'author' => 'TXT',
-	'owner' => 'INT',
+	'ownerid' => 'INT',
 	'date' => 'INT',
 	'begin' => 'INT',
 	'expire' => 'INT',
@@ -59,64 +59,9 @@ foreach ($extrafields as $key => $val) {
 	$available_sort_filterable[$key] = $val['vartype'];
 }
 
-$filter_vars = array();
-$filter_sql = array();
-$filter_urlspar = array();
-$filter_urlparams_arr = array();
-$filter_urlparams = "";
-
-$sql_where = "";
-
-// Process all filterable fields (standard columns and extra fields)
-foreach ($available_sort_filterable as $key => $vartype) {
-	if (!preg_match('/^[a-zA-Z0-9_]+$/', $key)) {
-		continue; // Skip invalid field names
-	}
-	if (!in_array($vartype, array('INT', 'BOL', 'TXT'))) {
-		continue;
-	}
-
-	$filter_vars['filter_' . $key] = sed_import('filter_' . $key, 'G', 'ARR');
-	if (empty($filter_vars['filter_' . $key])) {
-		$filter_vars['filter_' . $key] = sed_import('filter_' . $key, 'G', $vartype, 255);
-	}
-
-	if (!empty($filter_vars['filter_' . $key])) {
-		if (is_array($filter_vars['filter_' . $key])) {
-			// Limit array size to prevent performance issues
-			if (count($filter_vars['filter_' . $key]) > 50) {
-				continue; // Skip arrays with too many elements
-			}
-			// Process array values
-			$escaped_values = array();
-			foreach ($filter_vars['filter_' . $key] as $value) {
-				$filtered_value = sed_import($value, 'D', $vartype, 255);
-				if ($filtered_value !== null && $filtered_value !== '') {
-					$escaped_values[] = sed_sql_prep($filtered_value);
-				}
-			}
-			if (!empty($escaped_values)) {
-				$filter_sql[] = 'page_' . $key . " IN ('" . implode("','", $escaped_values) . "')";
-				foreach ($filter_vars['filter_' . $key] as $value) {
-					$filter_urlspar['filter_' . $key . '[]'] = $value;
-					$filter_urlparams_arr[] = 'filter_' . $key . '[]=' . urlencode($value);
-				}
-			}
-		} else {
-			// Process single value
-			if ($vartype === 'TXT') {
-				$filter_sql[] = 'page_' . $key . " LIKE '%" . sed_sql_prep($filter_vars['filter_' . $key]) . "%'";
-			} else {
-				$filter_sql[] = 'page_' . $key . " = '" . sed_sql_prep($filter_vars['filter_' . $key]) . "'";
-			}
-			$filter_urlspar['filter_' . $key] = $filter_vars['filter_' . $key];
-			$filter_urlparams_arr[] = 'filter_' . $key . '=' . urlencode($filter_vars['filter_' . $key]);
-		}
-	}
-}
-
-$filter_urlparams = (count($filter_urlparams_arr) > 0) ? "&" . implode('&', $filter_urlparams_arr) : "";
-$sql_where = (count($filter_sql) > 0) ? " AND " . implode(' AND ', $filter_sql) : " ";
+$filters = sed_page_list_build_filters($available_sort_filterable);
+$filter_urlparams = $filters['urlparams'];
+$sql_where = $filters['sql_where'];
 
 if (!array_key_exists($c, $sed_cat) && !($c == 'all')) {
 	/* Trailing slash fallback: maybe it's a page (e.g. /contacts/, /news/welcome/, /news/10/) */
@@ -257,13 +202,6 @@ if ($c == 'all' || $c == 'system') {
 	$catpath = sed_build_catpath($c, "<a href=\"%1\$s\">%2\$s</a>");
 }
 
-if (count($filter_urlspar) > 0) {
-	foreach ($filter_urlspar as $fkey => $fval) {
-		$filter_urlspar_arr[] = $fkey . "=" . $fval;
-	}
-	$filter_urlparams = "&" . implode('&', $filter_urlspar_arr);
-}
-
 $totalpages = ceil($totallines / $cfg['maxrowsperpage']);
 $currentpage = ceil($d / $cfg['maxrowsperpage']) + 1;
 
@@ -298,16 +236,9 @@ $urlpaths = array();
 sed_build_list_bc($c);
 
 // ---------- List thumb
-$list_thumbs_array = array();
-if (!empty($sed_cat[$c]['thumb'])) {
-	$list_thumbs_array = rtrim($sed_cat[$c]['thumb']);
-	if ($list_thumbs_array[mb_strlen($list_thumbs_array) - 1] == ';') {
-		$list_thumbs_array = mb_substr($list_thumbs_array, 0, -1);
-	}
-	$list_thumbs_array = explode(";", $list_thumbs_array);
-	if (count($list_thumbs_array) > 0) {
-		$out['image'] = $list_thumbs_array[0];
-	}
+$list_thumbs_array = sed_thumb_list($sed_cat[$c]['thumb']);
+if (count($list_thumbs_array) > 0) {
+	$out['image'] = $list_thumbs_array[0];
 }
 
 /* === Hook === */
@@ -505,7 +436,6 @@ foreach ($list_items as $pag) {
 		"LIST_ROW_CATTITLE" => $sed_cat[$pag['page_cat']]['title'],
 		"LIST_ROW_KEY" => sed_cc($pag['page_key']),
 		"LIST_ROW_TITLE" => sed_cc($pag['page_title']),
-		"LIST_ROW_THUMB" => sed_cc($pag['page_thumb']),
 		"LIST_ROW_DESC" => $pag['page_desc'],
 		"LIST_ROW_AUTHOR" => sed_cc($pag['page_author']),
 		"LIST_ROW_OWNER" => sed_build_user($pag['page_ownerid'], sed_cc($pag['user_name']), $pag['user_maingrp']),
@@ -519,16 +449,10 @@ foreach ($list_items as $pag) {
 		"LIST_ROW_ODDEVEN" => sed_build_oddeven($jj)
 	));
 
-	if (!empty($pag['page_thumb'])) {
-		$page_thumbs_array = rtrim($pag['page_thumb']);
-		if ($page_thumbs_array[mb_strlen($page_thumbs_array) - 1] == ';') {
-			$page_thumbs_array = mb_substr($page_thumbs_array, 0, -1);
-		}
-		$page_thumbs_array = explode(";", $page_thumbs_array);
-		if (count($page_thumbs_array) > 0) {
-			$t->assign("LIST_ROW_THUMB", $page_thumbs_array[0]);
-			$t->parse("MAIN.LIST_ROW.LIST_ROW_THUMB");
-		}
+	$page_thumbs_array = sed_thumb_list($pag['page_thumb']);
+	if (count($page_thumbs_array) > 0) {
+		$t->assign("LIST_ROW_THUMB", $page_thumbs_array[0]);
+		$t->parse("MAIN.LIST_ROW.LIST_ROW_THUMB");
 	} else {
 		$t->assign("LIST_ROW_THUMB", "noimg.jpg");
 	}
