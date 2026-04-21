@@ -56,25 +56,32 @@ $sql = sed_sql_query("SELECT s.*, n.* FROM $db_forum_sections AS s LEFT JOIN
 	$db_forum_structure AS n ON n.fn_code=s.fs_category WHERE fs_parentcat = '0'
     ORDER BY fs_parentcat ASC, fn_path ASC, fs_order ASC");
 
-// All subforums	
+// All subforums (nested, any depth)
 
 $sql2 = sed_sql_query("SELECT fs_id, fs_title, fs_desc, fs_icon, fs_parentcat, fs_lt_id, fs_lt_title, fs_lt_date, fs_lt_posterid, fs_lt_postername 
 	FROM $db_forum_sections WHERE fs_parentcat > 0 ORDER BY fs_order ASC");
 
+$forum_subforums = array();
+$subforum_children = array();
 while ($fsn_sub = sed_sql_fetchassoc($sql2)) {
 	$forum_subforums[$fsn_sub['fs_id']] = $fsn_sub;
+	$subforum_children[(int)$fsn_sub['fs_parentcat']][] = $fsn_sub['fs_id'];
 }
+
+$forum_children_map = sed_forum_get_children_map();
 
 //---
 
 if (!isset($sed_sections_act)) {
 	$sed_sections_act = array();
-	$timeback = $sys['now'] - 604800;
+	$timeback = (int)($sys['now'] - 604800);
 	$sqlact = sed_sql_query("SELECT fs_id FROM $db_forum_sections");
 	while ($tmprow = sed_sql_fetchassoc($sqlact)) {
-		$section = $tmprow['fs_id'];
-		$sqltmp = sed_sql_query("SELECT COUNT(*) FROM $db_forum_posts WHERE fp_creation>'$timeback' AND fp_sectionid='$section'");
-		$sed_sections_act[$section] = sed_sql_result($sqltmp, 0, "COUNT(*)");
+		$sed_sections_act[(int)$tmprow['fs_id']] = 0;
+	}
+	$sqltmp = sed_sql_query("SELECT fp_sectionid, COUNT(*) AS actcnt FROM $db_forum_posts WHERE fp_creation>'$timeback' GROUP BY fp_sectionid");
+	while ($row = sed_sql_fetchassoc($sqltmp)) {
+		$sed_sections_act[(int)$row['fp_sectionid']] = (int)$row['actcnt'];
 	}
 	sed_cache_store('sed_sections_act', $sed_sections_act, 600);
 }
@@ -88,7 +95,7 @@ if (!isset($sed_sections_vw)) {
 	sed_cache_store('sed_sections_vw', $sed_sections_vw, 120);
 }
 
-$secact_max = max($sed_sections_act);
+$secact_max = !empty($sed_sections_act) ? max($sed_sections_act) : 0;
 
 $out['markall'] = ($usr['id'] > 0) ? sed_link(sed_url("forums", "n=markall"), $L['for_markallasread']) : '';
 
@@ -196,8 +203,12 @@ foreach ($sect_arr as $fsec_key => $fsec) {
 
 			if ($fsn['fs_lt_id'] > 0) {
 				$fsn['fs_timago'] = sed_build_timegap($fsn['fs_lt_date'], $sys['now_offset']);
-				$fsn['lastpost'] = ($usr['id'] > 0 && $fsn['fs_lt_date'] > $usr['lastvisit'] && $fsn['fs_lt_posterid'] != $usr['id']) ? "<a href=\"" . sed_url("forums", "m=posts&q=" . $fsn['fs_lt_id'] . "&al=" . $fsn['fs_lt_title'] . "&n=unread", "#unread") . "\">" : "<a href=\"" . sed_url("forums", "m=posts&q=" . $fsn['fs_lt_id'] . "&al=" . $fsn['fs_lt_title'] . "&n=last", "#bottom") . "\">";
-				$fsn['lastpost'] .= sed_cutstring($fsn['fs_lt_title'], 32) . "</a>";
+				$url_params_lp = "m=posts&q=" . $fsn['fs_lt_id'] . "&al=" . $fsn['fs_lt_title'];
+				$lp_unread = ($usr['id'] > 0 && $fsn['fs_lt_date'] > $usr['lastvisit'] && $fsn['fs_lt_posterid'] != $usr['id']);
+				$lp_url = $lp_unread
+					? sed_url("forums", $url_params_lp . "&n=unread", "#unread")
+					: sed_url("forums", $url_params_lp . "&n=last", "#bottom");
+				$fsn['lastpost'] = sed_link($lp_url, sed_cutstring($fsn['fs_lt_title'], 32));
 			} else {
 				$fsn['fs_timago'] = '&nbsp;';
 				$fsn['lastpost'] = '&nbsp;';
@@ -254,46 +265,56 @@ foreach ($sect_arr as $fsec_key => $fsec) {
 				"FORUMS_SECTIONS_ROW" => $fsn
 			));
 
-			/* ============ For Subforums  Sed 172 ================== */
-			if (isset($forum_subforums) && is_array($forum_subforums)) {
+			/* ============ For Subforums (direct children only) ================== */
+			if (!empty($subforum_children[$fsn['fs_id']])) {
 				$ii = 0;
-				foreach ($forum_subforums as $key => $row) {
-					if ($forum_subforums[$key]['fs_parentcat'] == $fsn['fs_id']) {
-						if ($row['fs_lt_date'] > $lt_date) {
-							$fsnn = $forum_subforums[$key];
-							$fsnn['fs_lt_date'] = sed_build_date($cfg['formatmonthdayhourmin'], $fsnn['fs_lt_date']);
-							$fsnn['lastpost'] = ($usr['id'] > 0 && $fsnn['fs_lt_date'] > $usr['lastvisit'] && $fsnn['fs_lt_posterid'] != $usr['id']) ? "<a href=\"" . sed_url("forums", "m=posts&q=" . $fsnn['fs_lt_id'] . "&al=" . $fsnn['fs_lt_title'] . "&n=unread", "#unread") . "\">" : "<a href=\"" . sed_url("forums", "m=posts&q=" . $fsnn['fs_lt_id'] . "&al=" . $fsnn['fs_lt_title'] . "&n=last", "#bottom") . "\">";
-							$fsnn['lastpost'] .= sed_cutstring($fsnn['fs_lt_title'], 32) . "</a>";
-							$fsnn['fs_timago'] = sed_build_timegap($row['fs_lt_date'], $sys['now_offset']);
 
-							$t->assign(array(
-								"FORUMS_SECTIONS_ROW_LASTPOSTDATE" => $fsnn['fs_lt_date'],
-								"FORUMS_SECTIONS_ROW_LASTPOSTER" => sed_build_user($fsnn['fs_lt_posterid'], sed_cc($fsnn['fs_lt_postername'])),
-								"FORUMS_SECTIONS_ROW_LASTPOST" => $fsnn['lastpost'],
-								"FORUMS_SECTIONS_ROW_TIMEAGO" => $fsnn['fs_timago']
-							));
+				$latest_desc = sed_forum_latest_in_subtree($fsn['fs_id'], $forum_subforums, $forum_children_map);
+				if ($latest_desc && $latest_desc['fs_lt_date'] > $lt_date) {
+					$fsnn = $latest_desc;
+					$latest_ts = (int)$fsnn['fs_lt_date'];
+					$is_unread = ($usr['id'] > 0 && $latest_ts > $usr['lastvisit'] && $fsnn['fs_lt_posterid'] != $usr['id']);
+					$url_params_lp = "m=posts&q=" . $fsnn['fs_lt_id'] . "&al=" . $fsnn['fs_lt_title'];
+					$lp_url = $is_unread
+						? sed_url("forums", $url_params_lp . "&n=unread", "#unread")
+						: sed_url("forums", $url_params_lp . "&n=last", "#bottom");
+					$fsnn['lastpost'] = sed_link($lp_url, sed_cutstring($fsnn['fs_lt_title'], 32));
+					$fsnn['fs_timago'] = sed_build_timegap($latest_ts, $sys['now_offset']);
+					$fsnn['fs_lt_date'] = ($latest_ts > 0) ? sed_build_date($cfg['formatmonthdayhourmin'], $latest_ts) : '';
 
-							$lt_date = $row['fs_lt_date'];
-						}
+					$t->assign(array(
+						"FORUMS_SECTIONS_ROW_LASTPOSTDATE" => $fsnn['fs_lt_date'],
+						"FORUMS_SECTIONS_ROW_LASTPOSTER" => sed_build_user($fsnn['fs_lt_posterid'], sed_cc($fsnn['fs_lt_postername'])),
+						"FORUMS_SECTIONS_ROW_LASTPOST" => $fsnn['lastpost'],
+						"FORUMS_SECTIONS_ROW_TIMEAGO" => $fsnn['fs_timago']
+					));
 
-						if ($usr['id'] > 0 && $row['fs_lt_date'] > $usr['lastvisit'] && $row['fs_lt_posterid'] != $usr['id']) {
-							$row['fs_title'] = "+ " . $row['fs_title'];
-						}
+					$lt_date = $latest_ts;
+				}
 
-						$ii++;
-						$t->assign(array(
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_ID" => $row['fs_id'],
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_TITLE" => $row['fs_title'],
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_DESC" => $row['fs_desc'],
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_ICON" => $row['fs_icon'],
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_URL" => sed_url("forums", "m=topics&s=" . $row['fs_id'] . "&al=" . $row['fs_title']),
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_ODDEVEN" => sed_build_oddeven($ii),
-							"FORUMS_SECTIONS_ROW_SUBFORUMS_NUM" => $ii,
-							"FORUMS_SECTIONS_ROW_SUBFORUMS" => $row
-						));
+				foreach ($subforum_children[$fsn['fs_id']] as $sub_id) {
+					if (!isset($forum_subforums[$sub_id])) continue;
+					$row = $forum_subforums[$sub_id];
 
-						$t->parse("MAIN.FORUMS_SECTIONS_ROW.FORUMS_SECTIONS_ROW_SECTION.FORUMS_SECTIONS_ROW_SUBFORUMS.FORUMS_SECTIONS_ROW_SUBFORUMS_LIST");
+					$sub_title = $row['fs_title'];
+					if ($usr['id'] > 0 && $row['fs_lt_date'] > $usr['lastvisit'] && $row['fs_lt_posterid'] != $usr['id']) {
+						$sub_title = "+ " . $sub_title;
 					}
+
+					$ii++;
+					$t->assign(array(
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_ID" => $row['fs_id'],
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_TITLE" => $sub_title,
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_DESC" => $row['fs_desc'],
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_ICON" => $row['fs_icon'],
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_URL" => sed_url("forums", "m=topics&s=" . $row['fs_id'] . "&al=" . $row['fs_title']),
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_ODDEVEN" => sed_build_oddeven($ii),
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_NUM" => $ii,
+						"FORUMS_SECTIONS_ROW_SUBFORUMS_DEPTH" => 0,
+						"FORUMS_SECTIONS_ROW_SUBFORUMS" => $row
+					));
+
+					$t->parse("MAIN.FORUMS_SECTIONS_ROW.FORUMS_SECTIONS_ROW_SECTION.FORUMS_SECTIONS_ROW_SUBFORUMS.FORUMS_SECTIONS_ROW_SUBFORUMS_LIST");
 				}
 
 				if ($ii > 0) {
