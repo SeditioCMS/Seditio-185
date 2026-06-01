@@ -141,6 +141,7 @@ $L['Item'] = "Item";
 $L['Items'] = "Items";
 $L['Key'] = "Key";
 $L['kb'] = "KB";
+$L['mb'] = "MB";
 $L['Lastlogged'] = "Last logged";
 $L['Lastpost'] = "Last post";
 $L['Left'] = "Left";
@@ -568,6 +569,13 @@ $sed_translit = array(
 	'+' => 'plus',
 	'#' => 'sharp'
 );
+
+/* sedjs.imageUpload widget */
+$L['sed_image_upload_drop'] = 'Drag files here';
+$L['sed_image_upload_add'] = 'Add image';
+$L['sed_image_upload_select'] = 'Choose file';
+$L['sed_image_upload_add_url'] = 'upload from the internet';
+$L['sed_image_upload_sort_hint'] = 'Drag thumbnails to change image order';
 
 $sed_months_list = array(
 	1 => 'january',

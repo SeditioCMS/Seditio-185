@@ -141,6 +141,7 @@ $L['Item'] = "Öğe";
 $L['Items'] = "Öğeler";
 $L['Key'] = "Anahtar";
 $L['kb'] = "KB";
+$L['mb'] = "MB";
 $L['Lastlogged'] = "Son giriş";
 $L['Lastpost'] = "Son gönderi";
 $L['Left'] = "Sol";
@@ -568,6 +569,13 @@ $sed_translit = array(
 	'+' => 'plus',
 	'#' => 'sharp'
 );
+
+/* sedjs.imageUpload widget */
+$L['sed_image_upload_drop'] = 'Dosyaları buraya sürükleyin';
+$L['sed_image_upload_add'] = 'Resim ekle';
+$L['sed_image_upload_select'] = 'Seçmek için tıklayın';
+$L['sed_image_upload_add_url'] = 'internetten yükle';
+$L['sed_image_upload_sort_hint'] = 'Sırayı değiştirmek için küçük resimleri sürükleyin';
 
 $sed_months_list = array(
 	1 => 'ocak',
