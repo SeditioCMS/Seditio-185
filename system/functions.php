@@ -118,15 +118,51 @@ $cfg['versions_list'] = array(120, 121, 125, 126, 130, 150, 159, 160, 161, 162, 
 $cfg['group_colors'] = array('red', 'yellow', 'black', 'blue', 'white', 'green', 'gray', 'navy', 'darkmagenta', 'pink', 'cadetblue', 'linen', 'deepskyblue', 'inherit');
 $cfg['separator_symbol'] = "&raquo;";
 $cfg['structuresort'] = TRUE;
+$cfg['treetemplate'] = 'indent'; // select boxes: unicode | indent | dash; override in datas/config.php only
+$cfg['treeindent_nbsp'] = 4; // nbsp per level for indent mode in selects
 $cfg['available_image_sizes'] = array(); // array("800x600", "400x300");
 $cfg['adminskin'] = "sympfy";
 
 /* Message type:  warning => w, error => e, success => s, info => i */
 $cfg['msgtype'] = array(
-	'100' => 'e', '101' => 'e', '102' => 'i', '104' => 'i', '105' => 's', '106' => 's', '109' => 's', '113' => 's', '117' => 'i',
-	'118' => 's', '151' => 'e', '152' => 'e', '153' => 'e', '157' => 'w', '300' => 's', '301' => 's', '302' => 's', '303' => 'e', '918' => 'w', '400' => 'e', '401' => 'e', '403' => 'e',
-	'404' => 'e', '500' => 'e', '502' => 's', '602' => 'w', '603' => 'w', '900' => 'w', '904' => 'w', '907' => 'e', '911' => 'e',
-	'915' => 'e', '916' => 's', '917' => 's', '919' => 's', '930' => 'w', '940' => 'w', '950' => 'e' 
+	'100' => 'e',
+	'101' => 'e',
+	'102' => 'i',
+	'104' => 'i',
+	'105' => 's',
+	'106' => 's',
+	'109' => 's',
+	'113' => 's',
+	'117' => 'i',
+	'118' => 's',
+	'151' => 'e',
+	'152' => 'e',
+	'153' => 'e',
+	'157' => 'w',
+	'300' => 's',
+	'301' => 's',
+	'302' => 's',
+	'303' => 'e',
+	'918' => 'w',
+	'400' => 'e',
+	'401' => 'e',
+	'403' => 'e',
+	'404' => 'e',
+	'500' => 'e',
+	'502' => 's',
+	'602' => 'w',
+	'603' => 'w',
+	'900' => 'w',
+	'904' => 'w',
+	'907' => 'e',
+	'911' => 'e',
+	'915' => 'e',
+	'916' => 's',
+	'917' => 's',
+	'919' => 's',
+	'930' => 'w',
+	'940' => 'w',
+	'950' => 'e'
 );
 
 $cfg['msgtype_name'] = array('e' => 'error', 's' => 'success', 'i' => 'info', 'w' => 'warning');
@@ -190,9 +226,39 @@ $shield_hammer = 0;
 /* ======== Names of the SQL tables ========= */
 
 $sed_dbnames = array(
-	'auth', 'banlist', 'cache', 'com', 'core', 'config', 'dic', 'dic_items', 'forum_posts', 'forum_sections', 'forum_structure', 'forum_topics',
-	'groups', 'groups_users', 'logger', 'menu', 'online', 'pages', 'pfs', 'pfs_folders', 'plugins', 'pm', 'polls_options', 'polls', 'polls_voters',
-	'rated', 'ratings', 'referers', 'smilies', 'stats', 'structure', 'trash', 'users'
+	'auth',
+	'banlist',
+	'cache',
+	'com',
+	'core',
+	'config',
+	'dic',
+	'dic_items',
+	'forum_posts',
+	'forum_sections',
+	'forum_structure',
+	'forum_topics',
+	'groups',
+	'groups_users',
+	'logger',
+	'menu',
+	'online',
+	'pages',
+	'pfs',
+	'pfs_folders',
+	'plugins',
+	'pm',
+	'polls_options',
+	'polls',
+	'polls_voters',
+	'rated',
+	'ratings',
+	'referers',
+	'smilies',
+	'stats',
+	'structure',
+	'trash',
+	'users'
 );
 
 foreach ($sed_dbnames as $k => $i) {
@@ -1101,13 +1167,13 @@ function sed_br2nl($text)
 	return (preg_replace('#<br\s*/?>#i', "\n", $text));
 }
 
-/** 
- * Build breadcrumbs 
- * 
+/**
+ * Build breadcrumbs
+ *
  * @global array $urlpaths Urls and titles array
- * @global int $startpos Position 
- * @param bool $home Home link flag 
- * @return string 
+ * @global int $startpos Position
+ * @param bool $home Home link flag
+ * @return string
  */
 function sed_breadcrumbs($urlpaths, $startpos = 1, $home = true)
 {
@@ -1123,13 +1189,19 @@ function sed_breadcrumbs($urlpaths, $startpos = 1, $home = true)
 
 	$b = new XTemplate(sed_skinfile('breadcrumbs'));
 
+	$total = count($urlpaths);
+	$i = 1;
 	foreach ($urlpaths as $url => $title) {
+		$class = ($i === $total) ? 'active' : '';
+
 		$b->assign(array(
 			"BREADCRUMB_URL" => $url,
 			"BREADCRUMB_TITLE" => $title,
-			"BREADCRUMB_POSITION" => $startpos
+			"BREADCRUMB_POSITION" => $startpos,
+			"BREADCRUMB_CLASS" => $class
 		));
 		$startpos++;
+		$i++;
 		$b->parse("BREADCRUMBS.BREADCRUMBS_LIST");
 	}
 
@@ -1535,7 +1607,7 @@ function sed_add_css($css = '', $is_file = false, $priority = 50)
 				break;
 			}
 		}
-		
+
 		if (!$already_exists) {
 			$sed_css_collection['files'][] = array('path' => $css, 'priority' => $priority);
 		}
@@ -1570,12 +1642,12 @@ function sed_css()
 				$normalized_files[] = array('path' => $file, 'priority' => 50);
 			}
 		}
-		
+
 		// Sort by priority (lower priority number = higher priority)
-		usort($normalized_files, function($a, $b) {
+		usort($normalized_files, function ($a, $b) {
 			return $a['priority'] - $b['priority'];
 		});
-		
+
 		// Output sorted files
 		foreach ($normalized_files as $file) {
 			$result .= '<link href="' . $file['path'] . '" type="text/css" rel="stylesheet" />' . "\n";
@@ -2904,12 +2976,12 @@ function sed_javascript()
 				$normalized_files[] = array('path' => $file, 'priority' => 50);
 			}
 		}
-		
+
 		// Sort by priority (lower priority number = higher priority)
-		usort($normalized_files, function($a, $b) {
+		usort($normalized_files, function ($a, $b) {
 			return $a['priority'] - $b['priority'];
 		});
-		
+
 		// Output sorted files
 		foreach ($normalized_files as $file) {
 			$result .= '<script type="text/javascript" src="' . $file['path'] . '"></script>' . "\n";
@@ -2957,7 +3029,7 @@ function sed_add_javascript($js = '', $is_file = false, $priority = 50)
 				break;
 			}
 		}
-		
+
 		if (!$already_exists) {
 			$sed_js_collection['files'][] = array('path' => $js, 'priority' => $priority);
 		}
@@ -3085,6 +3157,115 @@ function sed_mail($fmail, $subject, $body, $headers = '', $param = '', $content 
 }
 
 /**
+ * Build virtual menu rows from a page category (auto-children for menu manager).
+ *
+ * @param array $menu_item Parent row from $db_menu
+ * @return array List of pseudo menu rows keyed by synthetic menu_id
+ */
+function sed_menu_items_from_category($menu_item)
+{
+	global $sed_cat;
+
+	if (!sed_module_active('page') || !function_exists('sed_page_category_children')) {
+		return array();
+	}
+
+	$cat = isset($menu_item['menu_cat']) ? $menu_item['menu_cat'] : '';
+	$show_subcats = !empty($menu_item['menu_cat_subcats']);
+	$show_pages = !empty($menu_item['menu_cat_pages']);
+
+	if ($cat === '' || $cat === 'system' || !isset($sed_cat[$cat])) {
+		return array();
+	}
+	if (!$show_subcats && !$show_pages) {
+		return array();
+	}
+
+	$items = array();
+	$pos = 0;
+
+	if ($show_subcats) {
+		foreach (sed_page_category_children($cat) as $code => $cdata) {
+			$pos++;
+			$items['cat_' . $code] = array(
+				'menu_id' => 'cat_' . $code,
+				'menu_pid' => $menu_item['menu_id'],
+				'menu_title' => $cdata['title'],
+				'menu_url' => sed_url('page', 'c=' . $code),
+				'menu_position' => $pos,
+				'menu_visible' => 1,
+				'menu_target' => '',
+				'menu_cssclass' => '',
+				'menu_cat' => '',
+				'menu_cat_subcats' => 0,
+				'menu_cat_pages' => 0,
+			);
+		}
+	}
+
+	if ($show_pages) {
+		foreach (sed_page_category_pages($cat) as $page) {
+			$pos++;
+			$url = sed_page_build_url($page);
+
+			$items['page_' . $page['page_id']] = array(
+				'menu_id' => 'page_' . $page['page_id'],
+				'menu_pid' => $menu_item['menu_id'],
+				'menu_title' => $page['page_title'],
+				'menu_url' => $url,
+				'menu_position' => $pos,
+				'menu_visible' => 1,
+				'menu_target' => '',
+				'menu_cssclass' => '',
+				'menu_cat' => '',
+				'menu_cat_subcats' => 0,
+				'menu_cat_pages' => 0,
+			);
+		}
+	}
+
+	return $items;
+}
+
+/**
+ * Append auto-generated category children to the menu tree.
+ *
+ * @param array $menu_tree Tree indexed by menu_pid (modified by reference)
+ * @param array $menu_row  Flat menu rows indexed by menu_id
+ */
+function sed_menu_merge_category_children(&$menu_tree, $menu_row)
+{
+	foreach ($menu_row as $id => $item) {
+		if (empty($item['menu_cat'])) {
+			continue;
+		}
+
+		$auto = sed_menu_items_from_category($item);
+		if (count($auto) === 0) {
+			continue;
+		}
+
+		$maxpos = 0;
+		if (isset($menu_tree[$id]) && is_array($menu_tree[$id])) {
+			foreach ($menu_tree[$id] as $child) {
+				if ((int)$child['menu_position'] > $maxpos) {
+					$maxpos = (int)$child['menu_position'];
+				}
+			}
+		} else {
+			$menu_tree[$id] = array();
+		}
+
+		$pos = $maxpos;
+		foreach ($auto as $key => $child) {
+			$pos++;
+			$child['menu_position'] = $pos;
+			$menu_tree[$id][$key] = $child;
+		}
+	}
+}
+
+/**
  * Generate a menu tree
  *
  * @param array $menus Array of menu items
@@ -3175,21 +3356,283 @@ function sed_menu_tree($menus, $parent_id, $level = 0, $only_parent = false, $on
 	return $tree;
 }
 
-/** 
- * Menu array options generate
- * 
- * @return array
+/**
+ * Normalize tree template name.
+ *
+ * @param string $t
+ * @return string 'unicode', 'dash', or 'indent'
  */
-function sed_menu_options($array, $parent = 0, $indent = "&nbsp; &nbsp; &nbsp;")
+function sed_tree_validate_template($t)
 {
-	$return = array();
-	foreach ($array as $key => $val) {
-		if ($val['menu_pid'] == $parent) {
-			$return['x' . $val['menu_id']] = $indent . $val['menu_title'];
-			$return = array_merge($return, sed_menu_options($array, $val['menu_id'], $indent . "&nbsp; &nbsp; &nbsp;"));
+	if ($t === 'unicode' || $t === 'dash' || $t === 'indent') {
+		return $t;
+	}
+
+	return 'unicode';
+}
+
+/**
+ * Returns validated tree display template for select boxes.
+ *
+ * @return string 'unicode', 'dash', or 'indent'
+ */
+function sed_tree_get_template()
+{
+	global $cfg;
+
+	$t = isset($cfg['treetemplate']) ? $cfg['treetemplate'] : 'unicode';
+
+	return sed_tree_validate_template($t);
+}
+
+/**
+ * Resolve nbsp count per indent level for dash/indent modes.
+ *
+ * @param string   $template
+ * @param int|null $indent_nbsp Explicit override (per call or per-list cfg)
+ * @return int
+ */
+function sed_tree_resolve_indent_nbsp($template, $indent_nbsp = null)
+{
+	global $cfg;
+
+	if ($indent_nbsp !== null) {
+		$n = (int)$indent_nbsp;
+		return ($n > 0) ? $n : 2;
+	}
+
+	if ($template === 'dash') {
+		return 3;
+	}
+
+	return isset($cfg['treeindent_nbsp']) ? max(1, (int)$cfg['treeindent_nbsp']) : 2;
+}
+
+/**
+ * Build nbsp + '-- ' prefix for dash/indent modes.
+ *
+ * @param int $depth
+ * @param int $indent_nbsp Nbsp characters per depth level
+ * @return string
+ */
+function sed_tree_format_prefix_indent($depth, $indent_nbsp)
+{
+	$unit = str_repeat('&nbsp;', $indent_nbsp);
+
+	return str_repeat($unit, $depth - 1) . '-- ';
+}
+
+/**
+ * HTML prefix for one hierarchical tree row (select options, admin lists).
+ *
+ * @param int        $depth
+ * @param bool       $is_last
+ * @param array      $prefix_continues Per ancestor level: true = draw vertical bar (unicode mode)
+ * @param string|null $template        null = $cfg['treetemplate'] (selects); or explicit mode
+ * @param int|null   $indent_nbsp      Nbsp per level for dash/indent; null = cfg default for mode
+ * @return string
+ */
+function sed_tree_format_prefix($depth, $is_last, $prefix_continues, $template = null, $indent_nbsp = null)
+{
+	$depth = (int)$depth;
+
+	if ($depth < 1) {
+		return '';
+	}
+
+	if ($template === null) {
+		$template = sed_tree_get_template();
+	} else {
+		$template = sed_tree_validate_template($template);
+	}
+
+	if ($template === 'dash' || $template === 'indent') {
+		$nbsp = sed_tree_resolve_indent_nbsp($template, $indent_nbsp);
+
+		return sed_tree_format_prefix_indent($depth, $nbsp);
+	}
+
+	$out = '';
+	$pc = is_array($prefix_continues) ? $prefix_continues : array();
+
+	for ($k = 0; $k < $depth - 1; $k++) {
+		if (!empty($pc[$k])) {
+			$out .= '&#x2502;&nbsp;&nbsp;';
+		} else {
+			$out .= '&nbsp;&nbsp;&nbsp;&nbsp;';
 		}
 	}
-	return $return;
+
+	$out .= $is_last ? '&#x2514;&#x2500;&nbsp;' : '&#x251C;&#x2500;&nbsp;';
+
+	return $out;
+}
+
+/**
+ * Flatten a parent-id tree into display order with depth metadata.
+ *
+ * @param array         $rows
+ * @param string        $id_key
+ * @param string        $parent_key
+ * @param int           $root
+ * @param callable|null $sort_callback Optional usort-style callback for sibling rows
+ * @return array
+ */
+function sed_tree_flat_from_parent($rows, $id_key, $parent_key, $root = 0, $sort_callback = null)
+{
+	$index = array();
+	$children = array();
+
+	foreach ($rows as $row) {
+		if (!is_array($row) || !isset($row[$id_key])) {
+			continue;
+		}
+		$id = $row[$id_key];
+		$index[$id] = $row;
+		$pid = isset($row[$parent_key]) ? (int)$row[$parent_key] : 0;
+		if (!isset($children[$pid])) {
+			$children[$pid] = array();
+		}
+		$children[$pid][] = $id;
+	}
+
+	if ($sort_callback !== null) {
+		foreach ($children as $pid => $ids) {
+			usort($children[$pid], function ($a, $b) use ($sort_callback, $index) {
+				return call_user_func($sort_callback, $index[$a], $index[$b]);
+			});
+		}
+	}
+
+	$result = array();
+	$walk = function ($pid, $depth, $prefix_continues) use (&$walk, &$children, &$index, &$result) {
+		if (!isset($children[$pid])) {
+			return;
+		}
+		$ids = $children[$pid];
+		$count = count($ids);
+		foreach ($ids as $i => $id) {
+			if (!isset($index[$id])) {
+				continue;
+			}
+			$is_last = ($i === $count - 1);
+			$item = $index[$id];
+			$item['depth'] = $depth;
+			$item['is_last'] = $is_last;
+			$item['prefix_continues'] = $prefix_continues;
+			$result[] = $item;
+			$child_prefix = $prefix_continues;
+			$child_prefix[] = !$is_last;
+			$walk($id, $depth + 1, $child_prefix);
+		}
+	};
+
+	$walk($root, 0, array());
+
+	return $result;
+}
+
+/**
+ * Flatten a dot-path tree (structure_path, fn_path, etc.) with depth metadata.
+ *
+ * @param array  $rows     Pre-sorted rows
+ * @param string $path_key Dot-path field name
+ * @return array
+ */
+function sed_tree_flat_from_dotpath($rows, $path_key)
+{
+	$children = array();
+	$by_path = array();
+
+	foreach ($rows as $row) {
+		if (!is_array($row) || !isset($row[$path_key])) {
+			continue;
+		}
+		$path = $row[$path_key];
+		$by_path[$path] = $row;
+		$last_dot = mb_strrpos($path, '.');
+		if ($last_dot > 0) {
+			$parent = mb_substr($path, 0, $last_dot);
+		} else {
+			$parent = '';
+		}
+		if (!isset($children[$parent])) {
+			$children[$parent] = array();
+		}
+		$children[$parent][] = $path;
+	}
+
+	$result = array();
+	$walk = function ($parent_path, $depth, $prefix_continues) use (&$walk, &$children, &$by_path, &$result) {
+		if (!isset($children[$parent_path])) {
+			return;
+		}
+		$paths = $children[$parent_path];
+		$count = count($paths);
+		foreach ($paths as $i => $path) {
+			if (!isset($by_path[$path])) {
+				continue;
+			}
+			$is_last = ($i === $count - 1);
+			$item = $by_path[$path];
+			$item['depth'] = $depth;
+			$item['is_last'] = $is_last;
+			$item['prefix_continues'] = $prefix_continues;
+			$result[] = $item;
+			$child_prefix = $prefix_continues;
+			$child_prefix[] = !$is_last;
+			$walk($path, $depth + 1, $child_prefix);
+		}
+	};
+
+	$walk('', 0, array());
+
+	return $result;
+}
+
+/**
+ * Build HTML for a hierarchical <select> from flat tree rows.
+ *
+ * Each item: value, title, depth (or level), is_last, prefix_continues; optional selected flag.
+ *
+ * @param string $name
+ * @param array  $items
+ * @param mixed  $selected
+ * @param string $extra_html Leading <option> / markup after <select> open
+ * @param string $select_attrs Extra attributes on <select> (e.g. onchange)
+ * @return string
+ */
+function sed_selectbox_tree_html($name, $items, $selected, $extra_html = '', $select_attrs = '')
+{
+	$result = '<select name="' . $name . '"' . $select_attrs . ' size="1">' . $extra_html;
+
+	foreach ($items as $item) {
+		if (!is_array($item)) {
+			continue;
+		}
+		$depth = isset($item['depth']) ? (int)$item['depth'] : 0;
+		if (isset($item['level'])) {
+			$depth = (int)$item['level'];
+		}
+		$is_last = !empty($item['is_last']);
+		$prefix_continues = (isset($item['prefix_continues']) && is_array($item['prefix_continues']))
+			? $item['prefix_continues']
+			: array();
+		$prefix = sed_tree_format_prefix($depth, $is_last, $prefix_continues);
+		$title = isset($item['title']) ? $item['title'] : '';
+		$value = isset($item['value']) ? $item['value'] : '';
+		$sel = '';
+		if (!empty($item['selected'])) {
+			$sel = ' selected="selected"';
+		} elseif ((string)$value === (string)$selected) {
+			$sel = ' selected="selected"';
+		}
+		$result .= '<option value="' . $value . '"' . $sel . '>' . $prefix . sed_cc($title) . '</option>';
+	}
+
+	$result .= '</select>';
+
+	return $result;
 }
 
 /** 
@@ -3606,38 +4049,10 @@ function sed_selectbox($check, $name, $values, $empty_option = TRUE, $key_isvalu
 	return $result;
 }
 
-/** 
- * Renders category dropdown 
- * 
- * @param string $check Selected value 
- * @param string $name Dropdown name 
- * @param bool $hideprivate Hide private categories
- * @param string $redirecturl Redirect URL 
- * @param string $additional Selectbox additional 
- * @return string 
- */
-function sed_selectbox_categories($check, $name, $hideprivate = TRUE, $redirecturl = "", $additional = "")
-{
-	global $db_structure, $usr, $sed_cat, $L;
-
-	$onchange = (!empty($redirecturl)) ? " onchange=\"sedjs.redirect(this)\"" : "";
-
-	$result =  "<select name=\"$name\"" . $onchange . " size=\"1\">" . $additional;
-
-	foreach ($sed_cat as $i => $x) {
-		$display = ($hideprivate) ? sed_auth('page', $i, 'W') : TRUE;
-
-		if (sed_auth('page', $i, 'R') && $i != 'all' && $display) {
-			$points_count = substr_count($x['path'], '.');
-			$x['title'] = str_repeat("--", $points_count) . " " . $x['title'];
-			$x['tpath'] = str_repeat("&nbsp;&nbsp;&nbsp;", $points_count) . " " . $x['title'];
-			$selected = ($i == $check) ? "selected=\"selected\"" : '';
-			$result .= "<option value=\"" . $redirecturl . $i . "\" $selected> " . $x['tpath'] . "</option>";
-		}
-	}
-	$result .= "</select>";
-	return ($result);
-}
+/* sed_selectbox_categories moved to modules/page/inc/page.functions.php */
+/* sed_selectbox_folders moved to modules/pfs/inc/pfs.functions.php */
+/* sed_selectbox_forumcat, sed_selectbox_sections, sed_selectbox_forum_parent moved to modules/forums/inc/forums.functions.php */
+/* sed_menu_list_with_level, sed_selectbox_menu_parent moved to system/functions.admin.php */
 
 /** 
  * Renders country dropdown 
@@ -3732,38 +4147,6 @@ function sed_selectbox_date($utime, $mode, $ext = '')
 	return ($result);
 }
 
-/** 
- * Renders PFS folder selection dropdown 
- * 
- * @param int $user User ID 
- * @param int $skip Skip folder 
- * @param int $check Checked folder 
- * @return string 
- */
-function sed_selectbox_folders($user, $skip, $check)
-{
-	global $db_pfs_folders;
-
-	$sql = sed_sql_query("SELECT pff_id, pff_title, pff_type FROM $db_pfs_folders WHERE pff_userid='$user' ORDER BY pff_title ASC");
-
-	$result =  "<select name=\"folderid\" size=\"1\">";
-
-	if ($skip != "/" && $skip != "0") {
-		$selected = (empty($check) || $check == "/") ? "selected=\"selected\"" : '';
-		$result .=  "<option value=\"0\" $selected>/ &nbsp; &nbsp;</option>";
-	}
-
-	while ($row = sed_sql_fetchassoc($sql)) {
-		if ($skip != $row['pff_id']) {
-			$selected = ($row['pff_id'] == $check) ? "selected=\"selected\"" : '';
-			$result .= "<option value=\"" . $row['pff_id'] . "\" $selected>" . sed_cc($row['pff_title']) . "</option>";
-		}
-	}
-	$result .= "</select>";
-	return ($result);
-}
-
-/* sed_selectbox_forumcat moved to modules/forums/inc/forums.functions.php */
 
 
 /** 
@@ -3849,7 +4232,6 @@ function sed_selectbox_lang($check, $name)
 	return ($result);
 }
 
-/* sed_selectbox_sections moved to modules/forums/inc/forums.functions.php */
 
 /** 
  * Returns skin selection dropdown 
